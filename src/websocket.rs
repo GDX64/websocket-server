@@ -56,31 +56,30 @@ impl Websocket {
 
         let data: &[u8] = &self.buff[..];
         let mut cursor = Cursor::new(data);
-        let mut bytes = cursor.borrow_mut().bytes();
 
-        let _first_byte = bytes.next()?.ok()?;
-        let payload_byte = bytes.next()?.ok()?;
+        let _first_byte = cursor.get_u8();
+        let payload_byte: u8 = cursor.get_u8();
         let _mask_bit = (payload_byte & 0b1000_0000) >> 7;
         let payload_len = payload_byte & 0b0111_1111;
         let final_payload_len = if payload_len == 126 {
-            todo!()
+            cursor.get_u16() as usize
         } else if payload_len == 127 {
-            todo!()
+            cursor.get_u64() as usize
         } else {
-            payload_len
+            payload_len as usize
         };
-        let mask = [
-            bytes.next()?.ok()?,
-            bytes.next()?.ok()?,
-            bytes.next()?.ok()?,
-            bytes.next()?.ok()?,
+        let mask: [u8; 4] = [
+            cursor.get_u8(),
+            cursor.get_u8(),
+            cursor.get_u8(),
+            cursor.get_u8(),
         ];
 
         let cursor_pos = cursor.position() as usize;
-        if self.buff.len() < cursor_pos + final_payload_len as usize {
+        if self.buff.len() < cursor_pos + final_payload_len {
             return None;
         }
-        let final_pos = cursor_pos + final_payload_len as usize;
+        let final_pos = cursor_pos + final_payload_len;
         let decoded_payload = data[cursor_pos..final_pos]
             .iter()
             .enumerate()

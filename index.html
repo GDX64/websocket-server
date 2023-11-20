@@ -14,8 +14,8 @@
       socket.onopen = () => {
         console.log("socket opened");
         socket.send("Hello Server!");
-        socket.send("We have more messages for you!");
-        socket.send("keep reading");
+        socket.send("a".repeat(512));
+        socket.send("that was a long message");
       };
       socket.onerror = (error) => {
         console.error(error);
