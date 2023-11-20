@@ -14,7 +14,7 @@
       socket.onopen = () => {
         console.log("socket opened");
         socket.send("Hello Server!");
-        socket.send("a".repeat(512));
+        socket.send(new Uint8Array([1, 2, 3, 4, 5]));
         socket.send("that was a long message");
       };
       socket.onerror = (error) => {

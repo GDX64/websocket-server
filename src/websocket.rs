@@ -1,7 +1,4 @@
-use std::{
-    borrow::BorrowMut,
-    io::{BufRead, Cursor, Read},
-};
+use std::io::Cursor;
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, BytesMut};
@@ -67,7 +64,18 @@ pub struct WebsocketFrame {
 
 impl WebsocketFrame {
     pub fn text(&self) -> String {
-        String::from_utf8_lossy(&self.payload).to_string()
+        match self.opcode {
+            OpCode::Text => String::from_utf8_lossy(&self.payload).to_string(),
+            OpCode::Binary => {
+                //format as hex
+                self.payload
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            }
+            _ => String::new(),
+        }
     }
 
     fn string(s: impl Into<String>) -> Self {
