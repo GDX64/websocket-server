@@ -35,7 +35,7 @@ impl Websocket {
 
     pub async fn read_frame(&mut self) -> Result<WebsocketFrame> {
         loop {
-            match self.try_read_frame() {
+            match WebsocketFrame::decode(&mut self.buff) {
                 Some(msg) => {
                     return Ok(msg);
                 }
@@ -48,13 +48,27 @@ impl Websocket {
             }
         }
     }
+}
 
-    pub fn try_read_frame(&mut self) -> Option<WebsocketFrame> {
-        if self.buff.len() < 2 {
+pub struct WebsocketFrame {
+    fin: u8,
+    opcode: OpCode,
+    mask_bit: u8,
+    payload_len: u8,
+    payload: Vec<u8>,
+}
+
+impl WebsocketFrame {
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.payload).to_string()
+    }
+
+    fn decode(buff: &mut BytesMut) -> Option<Self> {
+        if buff.len() < 2 {
             return None;
         }
 
-        let data: &[u8] = &self.buff[..];
+        let data: &[u8] = &buff[..];
         let mut cursor = Cursor::new(data);
 
         let first_byte = cursor.get_u8();
@@ -78,7 +92,7 @@ impl Websocket {
         ];
 
         let cursor_pos = cursor.position() as usize;
-        if self.buff.len() < cursor_pos + final_payload_len {
+        if buff.len() < cursor_pos + final_payload_len {
             return None;
         }
         let final_pos = cursor_pos + final_payload_len;
@@ -87,7 +101,7 @@ impl Websocket {
             .enumerate()
             .map(|(i, byte)| byte ^ mask[i % 4])
             .collect::<Vec<u8>>();
-        self.buff.advance(final_pos);
+        buff.advance(final_pos);
         if let Some(op) = OpCode::from_num(opcode) {
             let res = WebsocketFrame {
                 fin,
@@ -100,20 +114,6 @@ impl Websocket {
         } else {
             None
         }
-    }
-}
-
-pub struct WebsocketFrame {
-    fin: u8,
-    opcode: OpCode,
-    mask_bit: u8,
-    payload_len: u8,
-    payload: Vec<u8>,
-}
-
-impl WebsocketFrame {
-    pub fn text(&self) -> String {
-        String::from_utf8_lossy(&self.payload).to_string()
     }
 }
 
