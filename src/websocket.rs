@@ -1,3 +1,8 @@
+use std::{
+    borrow::BorrowMut,
+    io::{BufRead, Cursor, Read},
+};
+
 use anyhow::Result;
 use bytes::{Buf, BytesMut};
 use tokio::{
@@ -31,43 +36,59 @@ impl Websocket {
     pub async fn read_frame(&mut self) -> Result<String> {
         loop {
             match self.try_read_frame() {
-                Ok(Some(msg)) => {
+                Some(msg) => {
                     return Ok(msg);
                 }
-                Ok(None) => {
+                None => {
                     let n = self.stream.read_buf(&mut self.buff).await?;
                     if n == 0 {
                         return Err(anyhow::anyhow!("Socket closed by client"));
                     }
                 }
-                Err(e) => {
-                    return Err(e);
-                }
             }
         }
     }
 
-    pub fn try_read_frame(&mut self) -> Result<Option<String>> {
-        println!("try_read_frame, len: {}", self.buff.len());
+    pub fn try_read_frame(&mut self) -> Option<String> {
         if self.buff.len() < 2 {
-            return Ok(None);
+            return None;
         }
-        let data: &[u8] = &self.buff;
-        let _first_byte = data[0];
-        let payload_byte = data[1];
-        let mask_bit = (payload_byte & 0b1000_0000) >> 7;
+
+        let data: &[u8] = &self.buff[..];
+        let mut cursor = Cursor::new(data);
+        let mut bytes = cursor.borrow_mut().bytes();
+
+        let _first_byte = bytes.next()?.ok()?;
+        let payload_byte = bytes.next()?.ok()?;
+        let _mask_bit = (payload_byte & 0b1000_0000) >> 7;
         let payload_len = payload_byte & 0b0111_1111;
-        println!("mask: {mask_bit}, payload_len: {payload_len}");
-        let mask: [u8; 4] = data[2..6].try_into()?;
-        let payload = &data[6..payload_len as usize + 6];
-        let decoded_payload = payload
+        let final_payload_len = if payload_len == 126 {
+            todo!()
+        } else if payload_len == 127 {
+            todo!()
+        } else {
+            payload_len
+        };
+        let mask = [
+            bytes.next()?.ok()?,
+            bytes.next()?.ok()?,
+            bytes.next()?.ok()?,
+            bytes.next()?.ok()?,
+        ];
+
+        let cursor_pos = cursor.position() as usize;
+        if self.buff.len() < cursor_pos + final_payload_len as usize {
+            return None;
+        }
+        let final_pos = cursor_pos + final_payload_len as usize;
+        let decoded_payload = data[cursor_pos..final_pos]
             .iter()
             .enumerate()
             .map(|(i, byte)| byte ^ mask[i % 4])
             .collect::<Vec<u8>>();
-        let res = String::from_utf8(decoded_payload)?;
-        self.buff.advance(payload_len as usize + 6);
-        Ok(Some(res))
+        let res = String::from_utf8(decoded_payload).ok()?;
+        self.buff.advance(final_pos);
+        Some(res)
     }
 }
 
