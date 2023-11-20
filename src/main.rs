@@ -31,8 +31,8 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     let mut socket = websocket::Websocket::new(socket);
     socket.handshake().await?;
     loop {
-        println!("=====client says =====");
         let msg = socket.read_frame().await?;
+        socket.answer_string("got your message").await?;
         println!("{:?}", msg.text());
     }
 }

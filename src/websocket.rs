@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Result;
-use bytes::{Buf, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
 use tokio::{
     self,
     io::{AsyncReadExt, AsyncWriteExt},
@@ -21,6 +21,13 @@ impl Websocket {
             stream,
             buff: BytesMut::with_capacity(1024),
         }
+    }
+
+    pub async fn answer_string(&mut self, s: impl Into<String>) -> Result<()> {
+        let frame = WebsocketFrame::string(s);
+        let encoded = frame.encode();
+        self.stream.write_all(&encoded).await?;
+        Ok(())
     }
 
     pub async fn handshake(&mut self) -> Result<()> {
@@ -61,6 +68,34 @@ pub struct WebsocketFrame {
 impl WebsocketFrame {
     pub fn text(&self) -> String {
         String::from_utf8_lossy(&self.payload).to_string()
+    }
+
+    fn string(s: impl Into<String>) -> Self {
+        let payload = s.into().into_bytes();
+        Self {
+            fin: 1,
+            opcode: OpCode::Text,
+            mask_bit: 0,
+            payload_len: payload.len() as u8,
+            payload,
+        }
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let mut buff = BytesMut::with_capacity(1024);
+        let mut first_byte = self.fin << 7;
+        first_byte |= self.opcode as u8;
+        buff.put_u8(first_byte);
+        let mut payload_byte = self.mask_bit << 7;
+        payload_byte |= self.payload_len;
+        buff.put_u8(payload_byte);
+        if self.payload_len == 126 {
+            buff.put_u16(self.payload.len() as u16);
+        } else if self.payload_len == 127 {
+            buff.put_u64(self.payload.len() as u64);
+        }
+        buff.put_slice(&self.payload);
+        buff.to_vec()
     }
 
     fn decode(buff: &mut BytesMut) -> Option<Self> {
@@ -117,6 +152,8 @@ impl WebsocketFrame {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
 enum OpCode {
     Continuation = 0,
     Text = 1,
