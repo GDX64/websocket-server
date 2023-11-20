@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <script>
+      const socket = new WebSocket("ws://localhost:3000");
+      socket.onmessage = (event) => {
+        console.log(event.data);
+      };
+      socket.onopen = () => {
+        console.log("socket opened");
+        socket.send("Hello Server!");
+      };
+      socket.onerror = (error) => {
+        console.error(error);
+      };
+      socket.onclose = (event) => {
+        console.log("socket closed", event);
+      };
+    </script>
+  </body>
+</html>
