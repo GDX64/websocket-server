@@ -33,7 +33,7 @@ impl Websocket {
         return Ok(());
     }
 
-    pub async fn read_frame(&mut self) -> Result<String> {
+    pub async fn read_frame(&mut self) -> Result<WebsocketFrame> {
         loop {
             match self.try_read_frame() {
                 Some(msg) => {
@@ -49,7 +49,7 @@ impl Websocket {
         }
     }
 
-    pub fn try_read_frame(&mut self) -> Option<String> {
+    pub fn try_read_frame(&mut self) -> Option<WebsocketFrame> {
         if self.buff.len() < 2 {
             return None;
         }
@@ -57,7 +57,9 @@ impl Websocket {
         let data: &[u8] = &self.buff[..];
         let mut cursor = Cursor::new(data);
 
-        let _first_byte = cursor.get_u8();
+        let first_byte = cursor.get_u8();
+        let fin = first_byte >> 7;
+        let opcode = first_byte & 0b0000_1111;
         let payload_byte: u8 = cursor.get_u8();
         let _mask_bit = (payload_byte & 0b1000_0000) >> 7;
         let payload_len = payload_byte & 0b0111_1111;
@@ -85,9 +87,56 @@ impl Websocket {
             .enumerate()
             .map(|(i, byte)| byte ^ mask[i % 4])
             .collect::<Vec<u8>>();
-        let res = String::from_utf8(decoded_payload).ok()?;
         self.buff.advance(final_pos);
-        Some(res)
+        if let Some(op) = OpCode::from_num(opcode) {
+            let res = WebsocketFrame {
+                fin,
+                opcode: op,
+                mask_bit: _mask_bit,
+                payload_len,
+                payload: decoded_payload,
+            };
+            Some(res)
+        } else {
+            None
+        }
+    }
+}
+
+pub struct WebsocketFrame {
+    fin: u8,
+    opcode: OpCode,
+    mask_bit: u8,
+    payload_len: u8,
+    payload: Vec<u8>,
+}
+
+impl WebsocketFrame {
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.payload).to_string()
+    }
+}
+
+enum OpCode {
+    Continuation = 0,
+    Text = 1,
+    Binary = 2,
+    Close = 8,
+    Ping = 9,
+    Pong = 10,
+}
+
+impl OpCode {
+    fn from_num(num: u8) -> Option<Self> {
+        match num {
+            0 => Some(OpCode::Continuation),
+            1 => Some(OpCode::Text),
+            2 => Some(OpCode::Binary),
+            8 => Some(OpCode::Close),
+            9 => Some(OpCode::Ping),
+            10 => Some(OpCode::Pong),
+            _ => None,
+        }
     }
 }
 

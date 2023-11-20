@@ -33,6 +33,6 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     loop {
         println!("=====client says =====");
         let msg = socket.read_frame().await?;
-        println!("{msg:?}");
+        println!("{:?}", msg.text());
     }
 }
