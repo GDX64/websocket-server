@@ -5,6 +5,7 @@ use bytes::{Buf, BufMut, BytesMut};
 use tokio::{
     self,
     io::{AsyncReadExt, AsyncWriteExt},
+    time::timeout,
 };
 
 pub struct Websocket {
@@ -28,13 +29,38 @@ impl Websocket {
     }
 
     pub async fn handshake(&mut self) -> Result<()> {
-        let n = self.stream.read_buf(&mut self.buff).await?;
-        println!("read {} bytes", n);
+        self.stream.read_buf(&mut self.buff).await?;
         let msg = String::from_utf8_lossy(&self.buff);
         let result = handshake::handshake(&msg)?;
         self.stream.write_all(result.as_bytes()).await?;
         self.buff.clear();
         return Ok(());
+    }
+
+    pub async fn read_frames(&mut self) -> Result<Vec<WebsocketFrame>> {
+        let mut frames = vec![];
+        loop {
+            let frame = self.read_frame().await?;
+            let is_last = frame.is_last();
+            frames.push(frame);
+            if is_last {
+                return Ok(frames);
+            }
+        }
+    }
+
+    pub async fn ping(&mut self) -> Result<()> {
+        let frame = WebsocketFrame::ping();
+        let encoded = frame.encode();
+        self.stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
+    pub async fn pong(&mut self) -> Result<()> {
+        let frame = WebsocketFrame::pong();
+        let encoded = frame.encode();
+        self.stream.write_all(&encoded).await?;
+        Ok(())
     }
 
     pub async fn read_frame(&mut self) -> Result<WebsocketFrame> {
@@ -46,7 +72,7 @@ impl Websocket {
                 None => {
                     let n = self.stream.read_buf(&mut self.buff).await?;
                     if n == 0 {
-                        return Err(anyhow::anyhow!("Socket closed by client"));
+                        return Err(anyhow::anyhow!("Connection closed"));
                     }
                 }
             }
@@ -56,10 +82,22 @@ impl Websocket {
 
 pub struct WebsocketFrame {
     fin: u8,
-    opcode: OpCode,
+    pub opcode: OpCode,
     mask_bit: u8,
     payload_len: u8,
     payload: Vec<u8>,
+}
+
+impl Default for WebsocketFrame {
+    fn default() -> Self {
+        Self {
+            fin: 1,
+            opcode: OpCode::Text,
+            mask_bit: 0,
+            payload_len: 0,
+            payload: vec![],
+        }
+    }
 }
 
 impl WebsocketFrame {
@@ -76,6 +114,24 @@ impl WebsocketFrame {
             }
             _ => String::new(),
         }
+    }
+
+    pub fn ping() -> Self {
+        Self {
+            opcode: OpCode::Ping,
+            ..Default::default()
+        }
+    }
+
+    pub fn pong() -> Self {
+        Self {
+            opcode: OpCode::Pong,
+            ..Default::default()
+        }
+    }
+
+    pub fn is_last(&self) -> bool {
+        self.fin == 1
     }
 
     fn string(s: impl Into<String>) -> Self {
@@ -160,9 +216,9 @@ impl WebsocketFrame {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-enum OpCode {
+pub enum OpCode {
     Continuation = 0,
     Text = 1,
     Binary = 2,

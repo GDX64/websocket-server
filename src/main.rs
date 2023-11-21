@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use tokio::{
     self,
     io::{AsyncReadExt, AsyncWriteExt},
+    join, select,
 };
+
+use crate::websocket::OpCode;
 mod websocket;
 
 #[tokio::main]
@@ -32,7 +35,24 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     socket.handshake().await?;
     loop {
         let msg = socket.read_frame().await?;
-        socket.answer_string("got your message").await?;
-        println!("{:?}", msg.text());
+        match msg.opcode {
+            OpCode::Ping => {
+                println!("got ping");
+                socket.pong().await?;
+            }
+            OpCode::Text | OpCode::Binary => {
+                println!("{}", msg.text());
+                socket.answer_string("Hello").await?;
+            }
+            OpCode::Pong => {
+                println!("got pong");
+            }
+            OpCode::Close => {
+                println!("got close");
+            }
+            _ => {
+                println!("got something else");
+            }
+        }
     }
 }

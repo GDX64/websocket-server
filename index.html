@@ -14,7 +14,11 @@
       socket.onopen = () => {
         console.log("socket opened");
         socket.send("Hello Server!");
-        socket.send(new Uint8Array([1, 2, 3, 4, 5]));
+        socket.send(
+          new Uint8Array(
+            [...Array(10)].map(() => Math.floor(Math.random() * 256))
+          )
+        );
         socket.send("that was a long message");
       };
       socket.onerror = (error) => {
@@ -23,6 +27,9 @@
       socket.onclose = (event) => {
         console.log("socket closed", event);
       };
+      setInterval(() => {
+        socket.send("Hi!");
+      }, 5000);
     </script>
   </body>
 </html>
