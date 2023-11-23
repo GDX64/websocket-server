@@ -1,12 +1,5 @@
 use anyhow::Result;
-use base64::Engine;
-use sha1::{Digest, Sha1};
-use std::collections::HashMap;
-use tokio::{
-    self,
-    io::{AsyncReadExt, AsyncWriteExt},
-    join, select,
-};
+use tokio::{self, time::timeout};
 
 use crate::websocket::OpCode;
 mod websocket;
@@ -34,7 +27,15 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     let mut socket = websocket::Websocket::new(socket);
     socket.handshake().await?;
     loop {
-        let msg = socket.read_frame().await?;
+        let msg = socket.read_frame();
+        let msg = timeout(tokio::time::Duration::from_secs(2), msg).await;
+        let msg = if let Ok(msg) = msg {
+            msg?
+        } else {
+            println!("make ping");
+            socket.ping().await?;
+            continue;
+        };
         match msg.opcode {
             OpCode::Ping => {
                 println!("got ping");
