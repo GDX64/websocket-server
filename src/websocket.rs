@@ -5,7 +5,6 @@ use bytes::{Buf, BufMut, BytesMut};
 use tokio::{
     self,
     io::{AsyncReadExt, AsyncWriteExt},
-    time::timeout,
 };
 
 pub struct Websocket {

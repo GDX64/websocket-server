@@ -6,10 +6,7 @@ mod websocket;
 
 #[tokio::main]
 async fn main() {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
-
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:1234").await.unwrap();
     loop {
         let (socket, _) = listener.accept().await.unwrap();
         println!("Accepted connection");
@@ -43,7 +40,7 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
             }
             OpCode::Text | OpCode::Binary => {
                 println!("{}", msg.text());
-                socket.answer_string("Hello").await?;
+                socket.answer_string(msg.text()).await?;
             }
             OpCode::Pong => {
                 println!("got pong");

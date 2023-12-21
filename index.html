@@ -7,29 +7,47 @@
   </head>
   <body>
     <script>
-      const socket = new WebSocket("ws://localhost:3000");
-      socket.onmessage = (event) => {
-        console.log(event.data);
-      };
-      socket.onopen = () => {
-        console.log("socket opened");
-        socket.send("Hello Server!");
-        socket.send(
-          new Uint8Array(
-            [...Array(10)].map(() => Math.floor(Math.random() * 256))
-          )
-        );
-        socket.send("that was a long message");
-      };
-      socket.onerror = (error) => {
-        console.error(error);
-      };
-      socket.onclose = (event) => {
-        console.log("socket closed", event);
-      };
+      function makeSocket() {
+        const times = {
+          timeToConnect: 0,
+          timeToPing: 0,
+        };
+        const socket = new WebSocket("ws://127.0.0.1:3000");
+        const startTime = performance.now();
+        socket.onopen = () => {
+          times.timeToConnect = performance.now() - startTime;
+        };
+        socket.onerror = (error) => {
+          console.error(error);
+        };
+        socket.onclose = (event) => {
+          console.log("socket closed", event);
+        };
+        setInterval(() => {
+          socket.send("Hi!");
+          const startTime = performance.now();
+          socket.onmessage = (event) => {
+            times.timeToPing = performance.now() - startTime;
+          };
+        }, 1000);
+        return times;
+      }
+
+      const times = [...Array(1)].map(() => makeSocket());
+
       setInterval(() => {
-        socket.send("Hi!");
-      }, 5000);
+        const div = document.getElementById("times");
+        const children = times.map((time) => {
+          const p = document.createElement("p");
+          p.innerHTML = `timeToConnect: ${time.timeToConnect.toFixed(
+            2
+          )}ms timeToPing: ${time.timeToPing.toFixed(2)}ms`;
+          return p;
+        });
+        div.replaceChildren(...children);
+      }, 1000);
     </script>
+
+    <div id="times"></div>
   </body>
 </html>
