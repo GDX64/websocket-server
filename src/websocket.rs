@@ -27,7 +27,13 @@ impl Websocket {
         Ok(())
     }
 
-    pub async fn handshake(&mut self) -> Result<()> {
+    pub async fn answer_frame(&mut self, frame: WebsocketFrame) -> Result<()> {
+        let encoded = frame.encode();
+        self.stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
+    pub async fn server_handshake(&mut self) -> Result<()> {
         self.stream.read_buf(&mut self.buff).await?;
         let msg = String::from_utf8_lossy(&self.buff);
         let result = handshake::handshake(&msg)?;
@@ -35,6 +41,11 @@ impl Websocket {
         self.buff.clear();
         return Ok(());
     }
+
+    // pub fn client_handshake(&mut self) -> Result<()> {
+    //     let headers = vec!["Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="];
+    //     self.stream.write_all(src);
+    // }
 
     pub async fn read_frames(&mut self) -> Result<Vec<WebsocketFrame>> {
         let mut frames = vec![];
@@ -46,6 +57,11 @@ impl Websocket {
                 return Ok(frames);
             }
         }
+    }
+
+    pub async fn close(&mut self) -> Result<()> {
+        self.stream.shutdown().await?;
+        Ok(())
     }
 
     pub async fn ping(&mut self) -> Result<()> {

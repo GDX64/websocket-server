@@ -7,35 +7,57 @@
   </head>
   <body>
     <script>
+      "use strict";
       function makeSocket() {
-        const times = {
-          timeToConnect: 0,
-          timeToPing: 0,
-        };
-        const socket = new WebSocket("ws://127.0.0.1:1234");
-        const startTime = performance.now();
-        socket.onopen = () => {
-          times.timeToConnect = performance.now() - startTime;
-        };
-        socket.onerror = (error) => {
-          console.error(error);
-        };
-        socket.onclose = (event) => {
-          console.log("socket closed", event);
-        };
-        setInterval(() => {
-          socket.send("Hi!");
-          const startTime = performance.now();
-          socket.onmessage = (event) => {
-            times.timeToPing = performance.now() - startTime;
+        return new Promise((resolve) => {
+          const times = {
+            timeToConnect: 0,
+            timeToPing: 0,
           };
-        }, 1000);
-        return times;
+          const startTime = performance.now();
+          const socket = new WebSocket("ws://192.168.104.191:1234");
+          socket.onopen = async () => {
+            times.timeToConnect = performance.now() - startTime;
+            let sum = 0;
+            const N = 100;
+            for (let i = 0; i < N; i++) {
+              const startTime2 = performance.now();
+              await echoHi(socket);
+              sum += performance.now() - startTime2;
+            }
+            times.timeToPing = sum / N;
+            resolve(times);
+            socket.close(1000);
+          };
+          socket.onerror = (error) => {
+            console.error(error);
+          };
+          socket.onclose = (event) => {
+            // console.log("socket closed", event);
+          };
+          // setInterval(() => {
+          // }, 1000);
+        });
       }
 
-      const times = [...Array(20)].map(() => makeSocket());
+      function echoHi(websocket) {
+        return new Promise((resolve) => {
+          websocket.send("hi");
+          websocket.onmessage = (event) => {
+            resolve(event.data);
+          };
+        });
+      }
 
-      setInterval(() => {
+      async function cycle() {
+        const timesPromise = [...Array(3)].map(() => makeSocket());
+        const times = await Promise.all(timesPromise);
+        render(times);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        cycle();
+      }
+      cycle();
+      function render(times) {
         const div = document.getElementById("times");
         const children = times.map((time) => {
           const p = document.createElement("p");
@@ -45,9 +67,9 @@
           return p;
         });
         div.replaceChildren(...children);
-      }, 1000);
+      }
     </script>
 
-    <div id="times"></div>
+    <div id="times">HELLO</div>
   </body>
 </html>

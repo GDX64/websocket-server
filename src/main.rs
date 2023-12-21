@@ -36,7 +36,7 @@ async fn main() {
 async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     //finished handshake
     let mut socket = websocket::Websocket::new(socket);
-    socket.handshake().await?;
+    socket.server_handshake().await?;
     loop {
         let msg = socket.read_frame().await?;
         // let msg = timeout(tokio::time::Duration::from_secs(2), msg).await;
@@ -60,7 +60,8 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
                 // println!("got pong");
             }
             OpCode::Close => {
-                // println!("got close");
+                println!("got close");
+                socket.close().await?;
             }
             _ => {
                 // println!("got something else");
