@@ -2,8 +2,7 @@ use anyhow::Result;
 use std::time::SystemTime;
 use tokio::{self, time::timeout};
 
-use crate::websocket::OpCode;
-mod websocket;
+use websockets::*;
 
 #[tokio::main]
 async fn main() {
@@ -35,7 +34,7 @@ async fn main() {
 
 async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
     //finished handshake
-    let mut socket = websocket::Websocket::new(socket);
+    let mut socket = Websocket::new(socket);
     socket.server_handshake().await?;
     loop {
         let msg = socket.read_frame().await?;
@@ -53,7 +52,7 @@ async fn handle_websocket(socket: tokio::net::TcpStream) -> Result<()> {
                 socket.pong().await?;
             }
             OpCode::Text | OpCode::Binary => {
-                // println!("{}", msg.text());
+                println!("received this: {}", msg.text());
                 socket.answer_string(msg.text()).await?;
             }
             OpCode::Pong => {

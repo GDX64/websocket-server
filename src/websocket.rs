@@ -42,10 +42,15 @@ impl Websocket {
         return Ok(());
     }
 
-    // pub fn client_handshake(&mut self) -> Result<()> {
-    //     let headers = vec!["Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="];
-    //     self.stream.write_all(src);
-    // }
+    pub async fn client_handshake(&mut self) -> Result<()> {
+        let headers = vec![
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            "Upgrade: websocket",
+        ];
+        let headers = headers.join("\r\n");
+        self.stream.write_all(headers.as_bytes()).await?;
+        Ok(())
+    }
 
     pub async fn read_frames(&mut self) -> Result<Vec<WebsocketFrame>> {
         let mut frames = vec![];
